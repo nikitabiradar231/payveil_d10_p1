@@ -165,7 +165,9 @@ stealthpay-one-time-addresses/
 │   │   ├── metaAddress.ts     # ERC-5564 URI encoding & parser
 │   │   ├── payer.ts           # Payer address derivation
 │   │   ├── scanner.ts         # Fast view-tag-first scanner
-│   │   └── recovery.ts        # Modulo n key recovery
+│   │   ├── recovery.ts        # Modulo n key recovery
+│   │   ├── metadata.ts        # 57-byte ETH metadata encoding/decoding
+│   │   └── standard.ts        # Standard ERC-5564 checkStealthAddress & computeStealthKey
 │   ├── chain/                 # Blockchain integration (viem)
 │   │   ├── abis.ts            # Typed contract ABIs
 │   │   ├── client.ts          # Viem client factories
@@ -176,6 +178,7 @@ stealthpay-one-time-addresses/
 ├── test/
 │   ├── foundry/               # Foundry tests (11 tests)
 │   ├── crypto.test.ts         # Acceptance tests 1-7 (11 tests)
+│   ├── interop.test.ts        # Independent ERC-5564 interop tests (8 tests)
 │   ├── e2e.test.ts            # Acceptance test 8 & on-chain flow (4 tests)
 │   ├── secrets.test.ts        # Acceptance test 9: secret scan (4 tests)
 │   └── cli.test.ts            # CLI command tests (2 tests)
@@ -185,6 +188,7 @@ stealthpay-one-time-addresses/
 │   └── check-secrets.ts       # Secret leak scanner
 ├── .github/workflows/ci.yml   # Continuous integration
 ├── AUDIT_REPORT.md            # Comprehensive security audit
+├── SUBMISSION.md              # Buildathon submission summary
 └── README.md
 ```
 
@@ -260,7 +264,7 @@ node ./bin/stealthpay.js withdraw --to 0x70997970C51812dc3A010C7d01b50e0d17dc79C
 # Run Foundry contract suite (11 tests)
 npm run test:forge
 
-# Run TypeScript test suite (21 tests)
+# Run TypeScript unit, interop and integration test suite (29 tests across 5 suites)
 npm test
 
 # Run repository secret scanner

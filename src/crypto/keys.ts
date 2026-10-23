@@ -29,8 +29,12 @@ export function generatePrivateKey(): Hex {
  * @param privateKey 32-byte hex private key scalar.
  * @param compressed Whether to return 33-byte compressed format (default: true).
  */
-export function getPublicKey(privateKey: Hex, compressed = true): Hex {
-  const bytes = hexToBytes(privateKey);
+export function getPublicKey(privateKey: Hex | string, compressed = true): Hex {
+  let clean = privateKey.startsWith('0x') || privateKey.startsWith('0X') ? privateKey.slice(2) : privateKey;
+  if (clean.length > 0 && clean.length <= 64) {
+    clean = clean.padStart(64, '0');
+  }
+  const bytes = hexToBytes(`0x${clean}`);
   if (bytes.length !== 32) {
     throw new Error(`Invalid private key length: expected 32 bytes, got ${bytes.length}`);
   }
@@ -45,7 +49,11 @@ export function getPublicKey(privateKey: Hex, compressed = true): Hex {
  * Validates a private key scalar and returns its BigInt value.
  */
 export function parseAndValidatePrivateKey(privateKey: string): bigint {
-  const bytes = hexToBytes(privateKey);
+  let clean = privateKey.startsWith('0x') || privateKey.startsWith('0X') ? privateKey.slice(2) : privateKey;
+  if (clean.length > 0 && clean.length <= 64) {
+    clean = clean.padStart(64, '0');
+  }
+  const bytes = hexToBytes(`0x${clean}`);
   if (bytes.length !== 32) {
     throw new Error(`Invalid private key length: expected 32 bytes, got ${bytes.length}`);
   }

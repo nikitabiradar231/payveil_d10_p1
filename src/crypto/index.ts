@@ -6,3 +6,5 @@ export * from './metaAddress.js';
 export * from './payer.js';
 export * from './scanner.js';
 export * from './recovery.js';
+export * from './metadata.js';
+export * from './standard.js';

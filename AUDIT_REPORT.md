@@ -19,7 +19,8 @@ This audit conducted line-by-line verification across the Solidity smart contrac
 - **Total Acceptance Criteria Evaluated:** 9 of 9 **PASSED**
 - **Smart Contract Vulnerabilities:** 0 Critical, 0 High, 0 Medium (Reentrancy guard and atomic event forwarding verified)
 - **Foundry Contract Tests:** 11 / 11 tests **PASSED**
-- **TypeScript Unit & Integration Tests:** 21 / 21 tests **PASSED**
+- **TypeScript Unit, Interop & Integration Tests:** 29 / 29 tests **PASSED** across 5 test suites
+- **ERC-5564 Independent Interoperability:** Verified against published ScopeLift test vectors, independent external EC derivation, and canonical ABI decoding
 - **Repository Secret Leak Check:** Clean (0 findings)
 
 ---
@@ -35,6 +36,9 @@ This audit conducted line-by-line verification across the Solidity smart contrac
 | **AUD-05** | `withdraw.ts` | Gas limit was hardcoded to 21,000, failing withdrawals to smart contract destinations. | Low | **RESOLVED** | Implemented dynamic gas estimation with 21,000 fallback, allowing withdrawals to contract recipients. |
 | **AUD-06** | `scanner.ts` | Derived scalar $h=0$ handling was incomplete in scanner. | Informational | **RESOLVED** | Scanner checks $h \neq 0$ before executing point addition. |
 | **AUD-07** | CI / Automation | Missing GitHub Actions automated testing workflow. | Low | **RESOLVED** | Added `.github/workflows/ci.yml` running Forge tests, Vitest, secret scan, and local Anvil demo. |
+| **AUD-08** | `keys.ts` | Hex private key strings with omitted leading zeros (e.g. 63 hex chars) threw length errors. | Low | **RESOLVED** | Normalized and padded hex scalar strings to 64 characters (32 bytes). |
+| **AUD-09** | `standard.ts` | Missing explicit exports of standard ERC-5564 method names `checkStealthAddress` and `computeStealthKey`. | Low | **RESOLVED** | Implemented standard ERC-5564 polymorphic function signatures supporting both positional and object arguments. |
+| **AUD-10** | `metadata.ts` | Missing recommended 57-byte ETH metadata encoding/decoding utilities per ERC-5564 spec. | Informational | **RESOLVED** | Implemented `buildMetadataForETH` and `parseMetadata` adhering to ERC-5564 native token metadata format. |
 
 ---
 
@@ -134,7 +138,7 @@ npm run test:forge
 # 3. Build TypeScript codebase
 npm run build
 
-# 4. Run TypeScript unit and integration tests (21 passed)
+# 4. Run TypeScript unit, interop and integration tests (29 passed)
 npm test
 
 # 5. Run secret leak scanner (0 findings)
