@@ -1,0 +1,62 @@
+name: StealthPay CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Build, Audit & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Verify Foundry Installation
+        run: |
+          forge --version
+          anvil --version
+
+      - name: Compile and Test Smart Contracts (Foundry)
+        run: |
+          forge build
+          forge test -vvv
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Node Dependencies
+        run: npm ci
+
+      - name: Run Secret Leak Scanner
+        run: npm run check:secrets
+
+      - name: Build TypeScript Project
+        run: npm run build
+
+      - name: Start Local Anvil Node
+        run: |
+          anvil --port 8545 &
+          sleep 3
+
+      - name: Deploy Contracts to Anvil
+        run: npm run deploy:local
+
+      - name: Run Unit & Integration Tests (Vitest)
+        run: npm test
+
+      - name: Run Full End-to-End Demo Workflow
+        run: npm run demo

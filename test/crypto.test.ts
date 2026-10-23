@@ -1,7 +1,11 @@
+import { secp256k1 } from '@noble/curves/secp256k1';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  CURVE_ORDER,
   SCHEME_ID,
   assertScannerSafety,
+  bigIntToHex32,
+  deriveEthereumAddress,
   encodeStealthMetaAddress,
   generatePrivateKey,
   generateStealthAddress,
@@ -9,7 +13,8 @@ import {
   getPublicKey,
   parseStealthMetaAddress,
   recoverStealthPrivateKey,
-  scanAnnouncements
+  scanAnnouncements,
+  validateAndParsePoint
 } from '../src/crypto/index.js';
 
 describe('ERC-5564 Scheme 1 Cryptography & Acceptance Tests', () => {
@@ -62,13 +67,20 @@ describe('ERC-5564 Scheme 1 Cryptography & Acceptance Tests', () => {
       viewingPublicKey: recipient.viewing.publicKey
     });
 
-    const payment1 = generateStealthAddress({ stealthMetaAddress: metaAddress });
-    const payment2 = generateStealthAddress({ stealthMetaAddress: metaAddress });
-    const payment3 = generateStealthAddress({ stealthMetaAddress: metaAddress });
+    const ephemeralKeys = new Set<string>();
+    const count = 50;
 
-    expect(payment1.ephemeralPublicKey).not.toBe(payment2.ephemeralPublicKey);
-    expect(payment2.ephemeralPublicKey).not.toBe(payment3.ephemeralPublicKey);
-    expect(payment1.ephemeralPublicKey).not.toBe(payment3.ephemeralPublicKey);
+    for (let i = 0; i < count; i++) {
+      const payment = generateStealthAddress({ stealthMetaAddress: metaAddress });
+      expect(ephemeralKeys.has(payment.ephemeralPublicKey)).toBe(false);
+      ephemeralKeys.add(payment.ephemeralPublicKey);
+
+      // Verify each ephemeral key is a valid non-infinity curve point
+      const point = validateAndParsePoint(payment.ephemeralPublicKey);
+      expect(point.equals(secp256k1.ProjectivePoint.ZERO)).toBe(false);
+    }
+
+    expect(ephemeralKeys.size).toBe(count);
   });
 
   it('3. Correct stealth derivation: P_stealth = P_spend + hG matches derived address', () => {
@@ -106,6 +118,39 @@ describe('ERC-5564 Scheme 1 Cryptography & Acceptance Tests', () => {
     // Verify recovered private key produces public key corresponding to stealth address
     const recoveredPubKey = getPublicKey(recovery.stealthPrivateKey, true);
     expect(recoveredPubKey).toBeDefined();
+
+    // Verify address derived directly from p_stealth matches
+    const recoveredPoint = secp256k1.ProjectivePoint.BASE.multiply(BigInt(recovery.stealthPrivateKey));
+    expect(deriveEthereumAddress(recoveredPoint)).toBe(payment.stealthAddress);
+  });
+
+  it('4b. Edge Case: Recovery scalar reduction modulo n correctly wraps around when p_spend + h >= n', () => {
+    // Construct a high spending private key close to curve order n
+    const highSpendingScalar = CURVE_ORDER - 5n;
+    const highSpendingKey = bigIntToHex32(highSpendingScalar);
+    const spendingPubKey = getPublicKey(highSpendingKey, true);
+
+    const viewingKeys = generateStealthKeys().viewing;
+    const metaAddress = encodeStealthMetaAddress({
+      spendingPublicKey: spendingPubKey,
+      viewingPublicKey: viewingKeys.publicKey
+    });
+
+    // Make payment
+    const payment = generateStealthAddress({ stealthMetaAddress: metaAddress });
+
+    // Recover stealth private key
+    const recovery = recoverStealthPrivateKey({
+      spendingPrivateKey: highSpendingKey,
+      viewingPrivateKey: viewingKeys.privateKey,
+      ephemeralPublicKey: payment.ephemeralPublicKey,
+      expectedStealthAddress: payment.stealthAddress
+    });
+
+    const recoveredScalar = BigInt(recovery.stealthPrivateKey);
+    expect(recoveredScalar).toBeGreaterThan(0n);
+    expect(recoveredScalar).toBeLessThan(CURVE_ORDER);
+    expect(recovery.stealthAddress).toBe(payment.stealthAddress);
   });
 
   it('5. View-tag-first scanning: a mismatched view tag prevents full address derivation', () => {
@@ -209,7 +254,76 @@ describe('ERC-5564 Scheme 1 Cryptography & Acceptance Tests', () => {
     expect(paymentA.ephemeralPublicKey).not.toBe(paymentB.ephemeralPublicKey);
   });
 
-  it('Rejects invalid meta-addresses, invalid points, and unsupported schemes', () => {
+  it('ERC-5564 Single-Key Meta-Address support (length n)', () => {
+    const keyPair = generateStealthKeys().spending;
+    // Single key meta-address format: st:eth:0x<33 bytes>
+    const singleKeyMetaAddress = `st:eth:${keyPair.publicKey}`;
+
+    const parsed = parseStealthMetaAddress(singleKeyMetaAddress);
+    expect(parsed.spendingPublicKey).toBe(keyPair.publicKey);
+    expect(parsed.viewingPublicKey).toBe(keyPair.publicKey);
+
+    // Sender can derive payment to single-key meta-address
+    const payment = generateStealthAddress({ stealthMetaAddress: singleKeyMetaAddress });
+    expect(payment.stealthAddress).toMatch(/^0x[0-9a-fA-F]{40}$/);
+
+    // Recipient can scan and recover
+    const scan = scanAnnouncements({
+      viewingPrivateKey: keyPair.privateKey,
+      spendingPublicKey: keyPair.publicKey,
+      announcements: [
+        {
+          schemeId: SCHEME_ID,
+          stealthAddress: payment.stealthAddress,
+          caller: '0x1111111111111111111111111111111111111111' as const,
+          ephemeralPubKey: payment.ephemeralPublicKey,
+          metadata: payment.metadata
+        }
+      ]
+    });
+    expect(scan.matches.length).toBe(1);
+  });
+
+  it('Scanner deduplication ignores duplicated announcements', () => {
+    const recipient = generateStealthKeys();
+    const metaAddress = encodeStealthMetaAddress({
+      spendingPublicKey: recipient.spending.publicKey,
+      viewingPublicKey: recipient.viewing.publicKey
+    });
+
+    const payment = generateStealthAddress({ stealthMetaAddress: metaAddress });
+
+    // The same announcement repeated twice
+    const duplicatedAnnouncements = [
+      {
+        schemeId: SCHEME_ID,
+        stealthAddress: payment.stealthAddress,
+        caller: '0x1111111111111111111111111111111111111111' as const,
+        ephemeralPubKey: payment.ephemeralPublicKey,
+        metadata: payment.metadata,
+        transactionHash: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' as const
+      },
+      {
+        schemeId: SCHEME_ID,
+        stealthAddress: payment.stealthAddress,
+        caller: '0x1111111111111111111111111111111111111111' as const,
+        ephemeralPubKey: payment.ephemeralPublicKey,
+        metadata: payment.metadata,
+        transactionHash: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' as const
+      }
+    ];
+
+    const scanResult = scanAnnouncements({
+      viewingPrivateKey: recipient.viewing.privateKey,
+      spendingPublicKey: recipient.spending.publicKey,
+      announcements: duplicatedAnnouncements
+    });
+
+    // Must deduplicate and return exactly 1 match
+    expect(scanResult.matches.length).toBe(1);
+  });
+
+  it('Rejects invalid meta-addresses, invalid points, point at infinity, and unsupported schemes', () => {
     expect(() => parseStealthMetaAddress('')).toThrow(/non-empty string/);
     expect(() => parseStealthMetaAddress('st:eth:invalidhex')).toThrow();
     expect(() => parseStealthMetaAddress('st:eth:0x1234')).toThrow(/Invalid stealth meta-address length/);

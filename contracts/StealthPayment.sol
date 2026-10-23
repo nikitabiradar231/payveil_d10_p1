@@ -7,6 +7,14 @@ import "./IERC5564Announcer.sol";
 /// @notice Helper router contract for sending ETH payments and publishing ERC-5564 announcements atomically.
 contract StealthPayment {
     IERC5564Announcer public immutable announcer;
+    uint256 private _status = 1;
+
+    modifier nonReentrant() {
+        require(_status == 1, "StealthPayment: reentrancy rejected");
+        _status = 2;
+        _;
+        _status = 1;
+    }
 
     event StealthPaymentSent(
         uint256 indexed schemeId,
@@ -33,7 +41,7 @@ contract StealthPayment {
         address payable stealthAddress,
         bytes memory ephemeralPubKey,
         bytes memory metadata
-    ) external payable {
+    ) external payable nonReentrant {
         require(msg.value > 0, "StealthPayment: payment amount must be greater than zero");
         require(stealthAddress != address(0), "StealthPayment: stealth address cannot be zero");
         require(ephemeralPubKey.length > 0, "StealthPayment: ephemeralPubKey cannot be empty");

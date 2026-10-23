@@ -59,14 +59,16 @@ export function createProgram(): Command {
     .description('ERC-5564 Stealth Payments on Ethereum (Scheme 1 secp256k1)')
     .version('1.0.0');
 
-  // Command 1: keys create
-  program
-    .command('keys create')
+  // Command 1: keys
+  const keysCmd = program.command('keys').description('Stealth key management');
+  keysCmd
+    .command('create')
     .description('Generate a new spending & viewing key pair and save securely to local keystore')
     .option('-o, --out <path>', 'Custom keystore output path', DEFAULT_KEYSTORE_PATH)
     .action((options) => {
       try {
-        const { keys, metaAddress, path: savedPath } = createNewKeystore(options.out);
+        const outPath = options.out || DEFAULT_KEYSTORE_PATH;
+        const { keys, metaAddress, path: savedPath } = createNewKeystore(outPath);
         console.log('✨ Stealth keys generated successfully!');
         console.log(`📁 Keystore saved to: ${savedPath}`);
         console.log('');

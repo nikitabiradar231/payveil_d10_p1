@@ -85,6 +85,9 @@ export function validateAndParsePoint(pubKeyHex: string): typeof secp256k1.Proje
   try {
     const point = secp256k1.ProjectivePoint.fromHex(bytes);
     point.assertValidity();
+    if (point.equals(secp256k1.ProjectivePoint.ZERO)) {
+      throw new Error('Public key cannot be the point at infinity');
+    }
     return point;
   } catch (err) {
     throw new Error(`Invalid secp256k1 public key: ${(err as Error).message}`);

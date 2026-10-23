@@ -156,4 +156,41 @@ contract StealthContractsTest is Test {
         (bool success, ) = address(payment).call{value: 1 ether}("");
         assertFalse(success);
     }
+
+    function test_PayETH_RevertOnReentrancy() public {
+        MaliciousReentrantRecipient attacker = new MaliciousReentrantRecipient(address(payment));
+        vm.deal(address(attacker), 2 ether);
+
+        vm.prank(payer);
+        // Expect revert due to reentrancy rejection during call back
+        vm.expectRevert("StealthPayment: ETH transfer failed");
+        payment.payETH{value: 1 ether}(
+            SCHEME_ID,
+            payable(address(attacker)),
+            ephemeralPubKey,
+            metadata
+        );
+    }
+}
+
+contract MaliciousReentrantRecipient {
+    StealthPayment public target;
+    bool private attacked;
+
+    constructor(address _target) {
+        target = StealthPayment(payable(_target));
+    }
+
+    receive() external payable {
+        if (!attacked) {
+            attacked = true;
+            // Attempt reentrancy into payETH
+            target.payETH{value: 1 ether}(
+                1,
+                payable(address(this)),
+                hex"0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+                hex"42"
+            );
+        }
+    }
 }

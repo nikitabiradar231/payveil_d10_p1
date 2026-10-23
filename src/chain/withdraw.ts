@@ -17,12 +17,13 @@ export interface WithdrawalResult {
   amountSent: bigint;
   amountSentEth: string;
   gasCost: bigint;
+  actualGasCost?: bigint;
   blockNumber: bigint;
 }
 
 /**
  * Sweeps the entire balance from a recovered stealth address to a recipient-chosen destination,
- * accurately accounting for gas costs.
+ * accurately accounting for gas costs and supporting contract destinations.
  */
 export async function executeWithdrawal({
   publicClient,
@@ -39,8 +40,21 @@ export async function executeWithdrawal({
     throw new Error(`Stealth address ${stealthAddress} has zero balance`);
   }
 
-  // 2. Compute gas costs
-  const gasLimit = 21000n; // Standard native ETH transfer
+  // 2. Compute gas costs (21000n standard for EOA, dynamic for contracts)
+  let gasLimit = 21000n;
+  try {
+    const estimated = await publicClient.estimateGas({
+      account: stealthAccount,
+      to: toAddress,
+      value: balance > 100000n ? balance - 100000n : 1n
+    });
+    if (estimated > gasLimit) {
+      gasLimit = estimated;
+    }
+  } catch {
+    // Fall back to standard EOA gas limit 21000
+  }
+
   const gasPrice = await publicClient.getGasPrice();
   const gasCost = gasLimit * gasPrice;
 
@@ -64,6 +78,7 @@ export async function executeWithdrawal({
   });
 
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+  const actualGasCost = receipt.gasUsed * (receipt.effectiveGasPrice ?? gasPrice);
 
   return {
     transactionHash: txHash,
@@ -72,6 +87,7 @@ export async function executeWithdrawal({
     amountSent: amountToSend,
     amountSentEth: formatEther(amountToSend),
     gasCost,
+    actualGasCost,
     blockNumber: receipt.blockNumber
   };
 }

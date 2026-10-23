@@ -55,6 +55,7 @@ export function scanAnnouncements(
   const pSpend = validateAndParsePoint(spendingPublicKey);
 
   const matches: ScanMatch[] = [];
+  const seen = new Set<string>();
   const diagnostics: ScanDiagnostics = {
     totalAnnouncements: announcements.length,
     schemeMismatches: 0,
@@ -116,6 +117,9 @@ export function scanAnnouncements(
     options?.onAddressDerivation?.(ann);
 
     const hScalar = bytesToBigInt(sHash) % CURVE_ORDER;
+    if (hScalar === 0n) {
+      continue;
+    }
     const hG = secp256k1.ProjectivePoint.BASE.multiply(hScalar);
     const pStealth = pSpend.add(hG);
     const derivedAddress = deriveEthereumAddress(pStealth);
@@ -123,6 +127,12 @@ export function scanAnnouncements(
     // 9. Compare derived stealth address with announced stealth address
     if (derivedAddress.toLowerCase() === ann.stealthAddress.toLowerCase()) {
       diagnostics.addressMatches++;
+      const dedupeKey = `${(ann.transactionHash || '').toLowerCase()}-${derivedAddress.toLowerCase()}-${ann.ephemeralPubKey.toLowerCase()}`;
+      if (seen.has(dedupeKey)) {
+        continue;
+      }
+      seen.add(dedupeKey);
+
       const viewTagHex: Hex = `0x${calculatedViewTag.toString(16).padStart(2, '0')}`;
 
       matches.push({

@@ -5,7 +5,7 @@ import {
   UNCOMPRESSED_PUBKEY_BYTE_LENGTH
 } from './constants.js';
 import type { Hex, StealthMetaAddressComponents } from './types.js';
-import { bytesToHex, hexToBytes, validateAndParsePoint } from './utils.js';
+import { bytesToHex, validateAndParsePoint } from './utils.js';
 
 /**
  * Encodes spending and viewing public keys into an ERC-5564 stealth meta-address URI.
@@ -33,6 +33,10 @@ export function encodeStealthMetaAddress({
 
 /**
  * Parses an ERC-5564 stealth meta-address string into spending and viewing public keys.
+ * Conforms strictly to ERC-5564 specification:
+ * - A stealth meta-address of length n uses the same key for spending and viewing.
+ * - A stealth meta-address of length 2n uses the first n bytes for spending and last n bytes for viewing.
+ *
  * Accepts:
  * - `st:<chain>:0x...`
  * - `st:<chain>:...`
@@ -67,24 +71,34 @@ export function parseStealthMetaAddress(metaAddress: string): StealthMetaAddress
 
   const totalBytes = keyPayload.length / 2;
 
-  let keyLength: number;
+  let spendingPublicKey: Hex;
+  let viewingPublicKey: Hex;
+
   if (totalBytes === COMPRESSED_PUBKEY_BYTE_LENGTH * 2) {
-    // Both are 33-byte compressed keys
-    keyLength = COMPRESSED_PUBKEY_BYTE_LENGTH;
+    // Dual key (compressed): 33 bytes spend + 33 bytes view
+    const spendHex = keyPayload.slice(0, COMPRESSED_PUBKEY_BYTE_LENGTH * 2);
+    const viewHex = keyPayload.slice(COMPRESSED_PUBKEY_BYTE_LENGTH * 2);
+    spendingPublicKey = `0x${spendHex}`;
+    viewingPublicKey = `0x${viewHex}`;
   } else if (totalBytes === UNCOMPRESSED_PUBKEY_BYTE_LENGTH * 2) {
-    // Both are 65-byte uncompressed keys
-    keyLength = UNCOMPRESSED_PUBKEY_BYTE_LENGTH;
+    // Dual key (uncompressed): 65 bytes spend + 65 bytes view
+    const spendHex = keyPayload.slice(0, UNCOMPRESSED_PUBKEY_BYTE_LENGTH * 2);
+    const viewHex = keyPayload.slice(UNCOMPRESSED_PUBKEY_BYTE_LENGTH * 2);
+    spendingPublicKey = `0x${spendHex}`;
+    viewingPublicKey = `0x${viewHex}`;
+  } else if (totalBytes === COMPRESSED_PUBKEY_BYTE_LENGTH) {
+    // Single key (compressed): same key for spending and viewing (ERC-5564 spec)
+    spendingPublicKey = `0x${keyPayload}`;
+    viewingPublicKey = `0x${keyPayload}`;
+  } else if (totalBytes === UNCOMPRESSED_PUBKEY_BYTE_LENGTH) {
+    // Single key (uncompressed): same key for spending and viewing (ERC-5564 spec)
+    spendingPublicKey = `0x${keyPayload}`;
+    viewingPublicKey = `0x${keyPayload}`;
   } else {
     throw new Error(
-      `Invalid stealth meta-address length: ${totalBytes} bytes. Expected ${COMPRESSED_PUBKEY_BYTE_LENGTH * 2} bytes (compressed) or ${UNCOMPRESSED_PUBKEY_BYTE_LENGTH * 2} bytes (uncompressed).`
+      `Invalid stealth meta-address length: ${totalBytes} bytes. Expected 33/65 bytes (single key) or 66/130 bytes (dual key).`
     );
   }
-
-  const spendHexPart = keyPayload.slice(0, keyLength * 2);
-  const viewHexPart = keyPayload.slice(keyLength * 2);
-
-  const spendingPublicKey: Hex = `0x${spendHexPart}`;
-  const viewingPublicKey: Hex = `0x${viewHexPart}`;
 
   // Rigorously validate both curve points
   validateAndParsePoint(spendingPublicKey);
