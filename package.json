@@ -1,0 +1,46 @@
+{
+  "name": "stealthpay-one-time-addresses",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "ERC-5564 Stealth Payments on Ethereum (Scheme 1 secp256k1)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "stealthpay": "./bin/stealthpay.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:forge": "powershell -Command \"& \\\"$HOME\\.foundry\\bin\\forge.exe\\\" test -vvv\"",
+    "compile:forge": "powershell -Command \"& \\\"$HOME\\.foundry\\bin\\forge.exe\\\" build\"",
+    "node:anvil": "powershell -Command \"& \\\"$HOME\\.foundry\\bin\\anvil.exe\\\"\"",
+    "deploy:local": "tsx scripts/deploy.ts",
+    "demo": "tsx scripts/demo.ts",
+    "check:secrets": "tsx scripts/check-secrets.ts",
+    "cli": "tsx src/cli/index.ts"
+  },
+  "keywords": [
+    "erc-5564",
+    "stealth-address",
+    "ethereum",
+    "privacy",
+    "secp256k1",
+    "viem"
+  ],
+  "author": "Antigravity",
+  "license": "MIT",
+  "dependencies": {
+    "@noble/curves": "^1.8.1",
+    "@noble/hashes": "^1.7.1",
+    "commander": "^13.1.0",
+    "dotenv": "^16.4.7",
+    "viem": "^2.23.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}

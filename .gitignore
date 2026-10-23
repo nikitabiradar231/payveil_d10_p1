@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Foundry / Solidity
+out/
+cache/
+
+# TypeScript Build
+dist/
+
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+*.local
+*.key
+*.pem
+secrets/
+keys/
+.stealthpay/
+
+# System files
+.DS_Store
+Thumbs.db
+*.log
